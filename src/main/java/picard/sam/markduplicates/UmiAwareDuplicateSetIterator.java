@@ -58,7 +58,8 @@ class UmiAwareDuplicateSetIterator implements CloseableIterator<DuplicateSet> {
     private final String inferredUmiTag;
     private final boolean allowMissingUmis;
     private boolean isOpen = false;
-    private Map<String, UmiMetrics> umiMetricsMap;
+    private final boolean duplexUmi;
+    private final Map<String, UmiMetrics> umiMetricsMap;
     private boolean haveWeSeenFirstRead = false;
 
     private long observedUmiBases = 0;
@@ -75,13 +76,14 @@ class UmiAwareDuplicateSetIterator implements CloseableIterator<DuplicateSet> {
      */
     UmiAwareDuplicateSetIterator(final DuplicateSetIterator wrappedIterator, final int maxEditDistanceToJoin,
                                  final String umiTag, final String assignedUmiTag, final boolean allowMissingUmis,
-                                 final Map<String, UmiMetrics> umiMetricsMap) {
+                                 final boolean duplexUmi, final Map<String, UmiMetrics> umiMetricsMap) {
         this.wrappedIterator = wrappedIterator;
         this.maxEditDistanceToJoin = maxEditDistanceToJoin;
         this.umiTag = umiTag;
         this.inferredUmiTag = assignedUmiTag;
         this.allowMissingUmis = allowMissingUmis;
         this.umiMetricsMap = umiMetricsMap;
+        this.duplexUmi = duplexUmi;
         isOpen = true;
         nextSetsIterator = Collections.emptyIterator();
     }
