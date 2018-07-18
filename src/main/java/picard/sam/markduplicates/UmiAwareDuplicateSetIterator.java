@@ -134,7 +134,7 @@ class UmiAwareDuplicateSetIterator implements CloseableIterator<DuplicateSet> {
             throw new PicardException("nextSetsIterator is expected to be empty, but already contains data.");
         }
 
-        final UmiGraph umiGraph = new UmiGraph(set, umiTag, inferredUmiTag, allowMissingUmis);
+        final UmiGraph umiGraph = new UmiGraph(set, umiTag, inferredUmiTag, allowMissingUmis, duplexUmi);
 
         // Get the UMI metrics for the library of this duplicate set, creating a new one if necessary.
         final String library = set.getRepresentative().getReadGroup().getLibrary();
@@ -150,7 +150,7 @@ class UmiAwareDuplicateSetIterator implements CloseableIterator<DuplicateSet> {
             final String inferredUmi = representativeRead.getStringAttribute(inferredUmiTag);
 
             for (final SAMRecord rec : records) {
-                final String currentUmi = UmiUtil.getSanitizedUMI(rec, umiTag);
+                final String currentUmi = UmiUtil.getSanitizedUMI(rec, umiTag, duplexUmi);
 
                 if (currentUmi != null) {
                     // All UMIs should be the same length, the code presently does not support variable length UMIs.

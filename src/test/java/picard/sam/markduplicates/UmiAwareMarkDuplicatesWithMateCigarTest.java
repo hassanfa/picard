@@ -467,10 +467,11 @@ public class UmiAwareMarkDuplicatesWithMateCigarTest extends SimpleMarkDuplicate
 
     @Test(dataProvider = "testUmiUtilDataProvider")
     public void testUmiUtil(List<String> observed, List<String> expected) {
+        final boolean duplexUmis = false;
         for (int i = 0; i < observed.size(); i++) {
             SAMRecord rec = new SAMRecord(new SAMFileHeader());
             rec.setAttribute("RX", observed.get(i));
-            Assert.assertEquals(UmiUtil.getSanitizedUMI(rec, "RX"), expected.get(i));
+            Assert.assertEquals(UmiUtil.getSanitizedUMI(rec, "RX", duplexUmis), expected.get(i));
         }
     }
 }

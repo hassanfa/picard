@@ -59,16 +59,19 @@ public class UmiGraph {
     private final String umiTag;                // UMI tag used in the SAM/BAM/CRAM file ie. RX
     private final String assignedUmiTag;        // Assigned UMI tag used in the SAM/BAM/CRAM file ie. MI
     private final boolean allowMissingUmis;     // Allow for missing UMIs
+    private final boolean duplexUmis;
 
-    public UmiGraph(DuplicateSet set, String umiTag, String assignedUmiTag, boolean allowMissingUmis) {
+    public UmiGraph(final DuplicateSet set, final String umiTag, final String assignedUmiTag, final boolean allowMissingUmis, final boolean duplexUmis) {
         this.umiTag = umiTag;
         this.assignedUmiTag = assignedUmiTag;
         this.allowMissingUmis = allowMissingUmis;
+        this.duplexUmis = duplexUmis;
         records = set.getRecords();
 
         // First ensure that all the reads have a UMI, if any reads are missing a UMI throw an exception unless allowMissingUmis is true
         for (SAMRecord rec : records) {
-            if (UmiUtil.getSanitizedUMI(rec, umiTag) == null) {
+            // System.out.println(rec.getStringAttribute(umiTag) + " " + rec.getFirstOfPairFlag() + " " + UmiUtil.getSanitizedUMI(rec, umiTag, duplexUmis));
+            if (UmiUtil.getSanitizedUMI(rec, umiTag, duplexUmis) == null) {
                 if (allowMissingUmis) {
                     rec.setAttribute(umiTag, "");
                 } else {
@@ -76,9 +79,10 @@ public class UmiGraph {
                 }
             }
         }
+//        System.out.println();
 
         // Count the number of times each UMI occurs
-        umiCounts = records.stream().collect(Collectors.groupingBy(p -> UmiUtil.getSanitizedUMI(p, umiTag), counting()));
+        umiCounts = records.stream().collect(Collectors.groupingBy(p -> UmiUtil.getSanitizedUMI(p, umiTag, duplexUmis), counting()));
 
         // At first we consider every UMI as if it were its own duplicate set
         numUmis = umiCounts.size();
@@ -120,7 +124,7 @@ public class UmiGraph {
         // Assign UMIs to duplicateSets
         final Map<String, Integer> duplicateSetsFromUmis = getDuplicateSetsFromUmis();
         for (SAMRecord rec : records) {
-            final String umi = UmiUtil.getSanitizedUMI(rec, umiTag);
+            final String umi = UmiUtil.getSanitizedUMI(rec, umiTag, duplexUmis);
             final Integer duplicateSetIndex = duplicateSetsFromUmis.get(umi);
 
             if (duplicateSets.containsKey(duplicateSetIndex)) {
@@ -148,7 +152,7 @@ public class UmiGraph {
             long nCount = 0;
 
             for (SAMRecord rec : recordList) {
-                final String umi = UmiUtil.getSanitizedUMI(rec, umiTag);
+                final String umi = UmiUtil.getSanitizedUMI(rec, umiTag, duplexUmis);
 
                 // If there is another choice, we don't want to choose the UMI with a N
                 // as the assignedUmi

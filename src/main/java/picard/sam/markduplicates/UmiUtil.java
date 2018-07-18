@@ -35,9 +35,14 @@ import htsjdk.samtools.SAMRecord;
 public class UmiUtil {
 
     /** Returns an instance of the UMI without dashes */
-    public static String getSanitizedUMI(final SAMRecord record, final String umiTag) {
-        String umi = record.getStringAttribute(umiTag);
+    public static String getSanitizedUMI(final SAMRecord record, final String umiTag, final boolean duplexUmi) {
+        final String umi = record.getStringAttribute(umiTag);
         if (umi == null) return null;
-        return umi.replace("-", "");
+        if(duplexUmi && !record.getFirstOfPairFlag()) {
+            String[] split = umi.split("-");
+            return split[1] + split[0];
+        } else {
+            return umi.replace("-", "");
+        }
     }
 }
