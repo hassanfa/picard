@@ -38,7 +38,7 @@ public class UmiUtil {
     public static String getSanitizedUMI(final SAMRecord record, final String umiTag, final boolean duplexUmi) {
         final String umi = record.getStringAttribute(umiTag);
         if (umi == null) return null;
-        if(duplexUmi && !record.getFirstOfPairFlag()) {
+        if(duplexUmi && (record.getFirstOfPairFlag() != record.getReadNegativeStrandFlag())) {
             String[] split = umi.split("-");
             return split[1] + split[0];
         } else {

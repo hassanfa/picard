@@ -57,13 +57,17 @@ public class UmiGraph {
     private final String[] umi;                 // Sequence of actual UMI, the index is the UMI ID
     private final int numUmis;                  // Number of observed UMIs
     private final String umiTag;                // UMI tag used in the SAM/BAM/CRAM file ie. RX
-    private final String assignedUmiTag;        // Assigned UMI tag used in the SAM/BAM/CRAM file ie. MI
+    private final String assignedUmiTag;        // Assigned UMI tag used in the SAM/BAM/CRAM file ie. aI
+    private final String molecularIdentifierTag; // Assigned UMI tag used in the SAM/BAM/CRAM file ie. MI
     private final boolean allowMissingUmis;     // Allow for missing UMIs
     private final boolean duplexUmis;
+    static int uniqueMoleculeId = 0;
 
-    public UmiGraph(final DuplicateSet set, final String umiTag, final String assignedUmiTag, final boolean allowMissingUmis, final boolean duplexUmis) {
+    public UmiGraph(final DuplicateSet set, final String umiTag, final String assignedUmiTag,
+                    final String molecularIdentifierTag, final boolean allowMissingUmis, final boolean duplexUmis) {
         this.umiTag = umiTag;
         this.assignedUmiTag = assignedUmiTag;
+        this.molecularIdentifierTag = molecularIdentifierTag;
         this.allowMissingUmis = allowMissingUmis;
         this.duplexUmis = duplexUmis;
         records = set.getRecords();
@@ -177,16 +181,29 @@ public class UmiGraph {
             // then choose the one with the fewest Ns
             if (assignedUmi == null) { assignedUmi = fewestNUmi; }
 
-            // Set the records to contain the assigned UMI
+            // Set the records to contain the inferred UMI and the Unique Molecular Identifier
             for (final SAMRecord rec : recordList) {
                 if (allowMissingUmis && rec.getStringAttribute(umiTag).isEmpty()) {
                     // The SAM spec doesn't support empty tags, so we set it to null if it is empty.
                     rec.setAttribute(umiTag, null);
                 } else {
                     rec.setAttribute(assignedUmiTag, assignedUmi);
+
+                    //String u = String.valueOf(uniqueMoleculeId);
+                    String u = assignedUmi;
+                    String uu = "";
+                    if(duplexUmis) {
+                        if(rec.getFirstOfPairFlag() != rec.getReadNegativeStrandFlag()) {
+                            uu = "/A";
+                        } else {
+                            uu = "/B";
+                        }
+                    }
+                    rec.setAttribute(molecularIdentifierTag, u + uu);
                 }
             }
 
+            uniqueMoleculeId++;
             duplicateSetList.add(ds);
         }
 

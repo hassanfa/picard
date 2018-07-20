@@ -169,7 +169,7 @@ public class UmiAwareMarkDuplicatesWithMateCigarTester extends AbstractMarkDupli
         for (final SAMRecord record : reader) {
             // If there are expected assigned UMIs, check to make sure they match
             if (expectedAssignedUmis != null) {
-                Assert.assertEquals(record.getAttribute("MI"), record.getAttribute(expectedUmiTag));
+                Assert.assertEquals(record.getAttribute("aI"), record.getAttribute(expectedUmiTag));
             }
         }
 

@@ -55,7 +55,8 @@ class UmiAwareDuplicateSetIterator implements CloseableIterator<DuplicateSet> {
     private Iterator<DuplicateSet> nextSetsIterator;
     private final int maxEditDistanceToJoin;
     private final String umiTag;
-    private final String inferredUmiTag;
+    private final String molecularIdentifierTag;
+    private final String assignedUmiTag;
     private final boolean allowMissingUmis;
     private boolean isOpen = false;
     private final boolean duplexUmi;
@@ -75,12 +76,14 @@ class UmiAwareDuplicateSetIterator implements CloseableIterator<DuplicateSet> {
      * @param umiMetricsMap         Map of UMI Metrics indexed by library name
      */
     UmiAwareDuplicateSetIterator(final DuplicateSetIterator wrappedIterator, final int maxEditDistanceToJoin,
-                                 final String umiTag, final String assignedUmiTag, final boolean allowMissingUmis,
-                                 final boolean duplexUmi, final Map<String, UmiMetrics> umiMetricsMap) {
+                                 final String umiTag, final String assignedUmiTag, final String molecularIdentifierTag,
+                                 final boolean allowMissingUmis, final boolean duplexUmi,
+                                 final Map<String, UmiMetrics> umiMetricsMap) {
         this.wrappedIterator = wrappedIterator;
         this.maxEditDistanceToJoin = maxEditDistanceToJoin;
         this.umiTag = umiTag;
-        this.inferredUmiTag = assignedUmiTag;
+        this.assignedUmiTag = assignedUmiTag;
+        this.molecularIdentifierTag = molecularIdentifierTag;
         this.allowMissingUmis = allowMissingUmis;
         this.umiMetricsMap = umiMetricsMap;
         this.duplexUmi = duplexUmi;
@@ -134,7 +137,7 @@ class UmiAwareDuplicateSetIterator implements CloseableIterator<DuplicateSet> {
             throw new PicardException("nextSetsIterator is expected to be empty, but already contains data.");
         }
 
-        final UmiGraph umiGraph = new UmiGraph(set, umiTag, inferredUmiTag, allowMissingUmis, duplexUmi);
+        final UmiGraph umiGraph = new UmiGraph(set, umiTag, assignedUmiTag, molecularIdentifierTag, allowMissingUmis, duplexUmi);
 
         // Get the UMI metrics for the library of this duplicate set, creating a new one if necessary.
         final String library = set.getRepresentative().getReadGroup().getLibrary();
@@ -147,7 +150,7 @@ class UmiAwareDuplicateSetIterator implements CloseableIterator<DuplicateSet> {
         for (final DuplicateSet ds : duplicateSets) {
             final List<SAMRecord> records = ds.getRecords();
             final SAMRecord representativeRead = ds.getRepresentative();
-            final String inferredUmi = representativeRead.getStringAttribute(inferredUmiTag);
+            final String inferredUmi = representativeRead.getStringAttribute(assignedUmiTag);
 
             for (final SAMRecord rec : records) {
                 final String currentUmi = UmiUtil.getSanitizedUMI(rec, umiTag, duplexUmi);
