@@ -34,14 +34,7 @@ import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.writer.Options;
 import htsjdk.variant.variantcontext.writer.VariantContextWriter;
 import htsjdk.variant.variantcontext.writer.VariantContextWriterBuilder;
-import htsjdk.variant.vcf.VCFFileReader;
-import htsjdk.variant.vcf.VCFFormatHeaderLine;
-import htsjdk.variant.vcf.VCFHeader;
-import htsjdk.variant.vcf.VCFHeaderLine;
-import htsjdk.variant.vcf.VCFHeaderLineCount;
-import htsjdk.variant.vcf.VCFHeaderLineType;
-import htsjdk.variant.vcf.VCFInfoHeaderLine;
-import htsjdk.variant.vcf.VCFStandardHeaderLines;
+import htsjdk.variant.vcf.*;
 import org.broadinstitute.barclay.argparser.Argument;
 import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
 import org.broadinstitute.barclay.help.DocumentedFeature;
@@ -71,8 +64,8 @@ public class FixVcfHeader extends CommandLineProgram {
     static final String USAGE_SUMMARY = "Replaces or fixes a VCF header.";
     static final String USAGE_DETAILS =
             "This tool will either replace the header in the input VCF file (INPUT) with the given VCF header (HEADER) or will attempt to fill " +
-            "in any field definitions that are missing in the input header by examining the variants in the input VCF file (INPUT).  In the  " +
-            " latter case, this tool will perform two passes over the input VCF, and any INFO and FORMAT fields found in the VCF records but " +
+            "in any field definitions that are missing in the input header by examining the variants in the input VCF file (INPUT).  In the " +
+            "latter case, this tool will perform two passes over the input VCF, and any FILTER, INFO, and FORMAT fields found in the VCF records but " +
             "not found in the input VCF header will be added to the output VCF header with dummy descriptions.<br />" +
             "<h4>Replace header usage example:</h4>" +
             "<pre>" +
@@ -121,41 +114,54 @@ public class FixVcfHeader extends CommandLineProgram {
         if (HEADER != null) IOUtil.assertFileIsReadable(HEADER);
         IOUtil.assertFileIsWritable(OUTPUT);
 
-        final VCFFileReader reader = new VCFFileReader(INPUT, false);
+        final VCFFileReader reader     = new VCFFileReader(INPUT, false);
+        final VCFHeader existingHeader = reader.getFileHeader();
 
         final VCFHeader outHeader;
         if (HEADER != null) { // read the header from the file
             final VCFFileReader headerReader = new VCFFileReader(HEADER, false);
+            final VCFHeader inputHeader      = headerReader.getFileHeader();
             if (ENFORCE_SAME_SAMPLES) {
-                outHeader = headerReader.getFileHeader();
-                enforceSameSamples(reader.getFileHeader(), outHeader);
+                outHeader = inputHeader;
+                enforceSameSamples(existingHeader, outHeader);
             }
             else {
-                outHeader = new VCFHeader(headerReader.getFileHeader().getMetaDataInInputOrder(), reader.getFileHeader().getSampleNamesInOrder());
+                outHeader = new VCFHeader(inputHeader.getMetaDataInInputOrder(), existingHeader.getSampleNamesInOrder());
             }
             CloserUtil.close(headerReader);
+            outHeader.getFilterLines()
+                    .stream()
+                    .filter(filterHeaderLine -> !existingHeader.hasFilterLine(filterHeaderLine.getID()))
+                    .forEach(filterHeaderLine -> log.info("FILTER line found in HEADER will be added to OUTPUT: " + filterHeaderLine));
             outHeader.getInfoHeaderLines()
                     .stream()
-                    .filter(infoHeaderLine -> !reader.getFileHeader().hasInfoLine(infoHeaderLine.getID()))
+                    .filter(infoHeaderLine -> !existingHeader.hasInfoLine(infoHeaderLine.getID()))
                     .forEach(infoHeaderLine -> log.info("INFO line found in HEADER will be added to OUTPUT: " + infoHeaderLine.getID()));
             outHeader.getFormatHeaderLines()
                     .stream()
-                    .filter(formatHeaderLine -> !reader.getFileHeader().hasInfoLine(formatHeaderLine.getID()))
+                    .filter(formatHeaderLine -> !existingHeader.hasInfoLine(formatHeaderLine.getID()))
                     .forEach(formatHeaderLine -> log.info("FORMAT line found in HEADER will be added to OUTPUT: " + formatHeaderLine.getID()));
         }
         else { // read the input
             final ProgressLogger progress = new ProgressLogger(log, 1000000, "read");
-            final VCFFileReader in = new VCFFileReader(INPUT, false);
-            final VCFHeader inHeader = in.getFileHeader();
+            final VCFFileReader in        = new VCFFileReader(INPUT, false);
 
-            final Map<String, VCFInfoHeaderLine> infoHeaderLines = new HashMap<>();
+            final Map<String, VCFFilterHeaderLine> filterHeaderLines = new HashMap<>();
+            final Map<String, VCFInfoHeaderLine> infoHeaderLines     = new HashMap<>();
             final Map<String, VCFFormatHeaderLine> formatHeaderLines = new HashMap<>();
             log.info("Reading in records to re-build the header.");
             for (final VariantContext ctx : in) {
+                // FILTER
+                for (final String filter : ctx.getFilters()) {
+                    if (!existingHeader.hasFilterLine(filter) && !filterHeaderLines.containsKey(filter)) {
+                        log.info("Will add an FILTER line with id: " + filter);
+                        filterHeaderLines.put(filter, new VCFFilterHeaderLine(filter, "Missing description: this FILTER line was added by Picard's FixVCFHeader"));
+                    }
+                }
                 // INFO
                 for (final Map.Entry<String, Object> attribute : ctx.getAttributes().entrySet()) {
                     final String id = attribute.getKey();
-                    if (!inHeader.hasInfoLine(id) && !infoHeaderLines.containsKey(id)) {
+                    if (!existingHeader.hasInfoLine(id) && !infoHeaderLines.containsKey(id)) {
                         log.info("Will add an INFO line with id: " + id);
                         infoHeaderLines.put(id, new VCFInfoHeaderLine(id, VCFHeaderLineCount.UNBOUNDED, VCFHeaderLineType.String, "Missing description: this INFO line was added by Picard's FixVCFHeader"));
                     }
@@ -164,7 +170,7 @@ public class FixVcfHeader extends CommandLineProgram {
                 for (final Genotype genotype : ctx.getGenotypes()) {
                     for (final Map.Entry<String, Object> attribute : genotype.getExtendedAttributes().entrySet()) {
                         final String id = attribute.getKey();
-                        if (!inHeader.hasFormatLine(id) && !formatHeaderLines.containsKey(id)) {
+                        if (!existingHeader.hasFormatLine(id) && !formatHeaderLines.containsKey(id)) {
                             log.info("Will add FORMAT line with id: " + id);
                             formatHeaderLines.put(id, new VCFFormatHeaderLine(id, VCFHeaderLineCount.UNBOUNDED, VCFHeaderLineType.String, "Missing description: this FORMAT line was added by Picard's FixVCFHeader"));
                         }
@@ -176,11 +182,12 @@ public class FixVcfHeader extends CommandLineProgram {
             CloserUtil.close(in);
 
             // create the output header
-            final Set<VCFHeaderLine> headerLines = new HashSet<>(inHeader.getMetaDataInInputOrder());
+            final Set<VCFHeaderLine> headerLines = new HashSet<>(existingHeader.getMetaDataInInputOrder());
             VCFStandardHeaderLines.addStandardFormatLines(headerLines, false, Genotype.PRIMARY_KEYS); // This is very frustrating to have to add
+            headerLines.addAll(filterHeaderLines.values());
             headerLines.addAll(infoHeaderLines.values());
             headerLines.addAll(formatHeaderLines.values());
-            outHeader = new VCFHeader(headerLines, inHeader.getSampleNamesInOrder());
+            outHeader = new VCFHeader(headerLines, existingHeader.getSampleNamesInOrder());
             log.info("VCF header re-built.");
         }
 
